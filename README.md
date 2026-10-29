@@ -1,149 +1,53 @@
-# F31: Hiding Kali Linux [OUTDATED]
+# F31 — unsupported and unsafe for production use
 
-**I made a mistake with the concept of this tool. The realization of the idea turned out to be a failure.**
+F31 is an outdated experiment. Its network and system changes have not been
+validated for safe operation or reliable restoration. **Do not run these scripts
+on a production, engagement, or other important host.** The project makes no
+verified OPSEC, anonymity, or detection-evasion guarantees.
 
-**The tool needs to be rewritten and improved, which I am currently doing.**
+The scripts can modify system identity, NetworkManager configuration, time
+synchronization, kernel network settings, firewall rules, the network interface
+MAC address, and traffic shaping. The reset script assumes default values and
+does not reliably restore the previous host state. Partial failures may leave
+changes behind or interrupt network access.
 
+## Remediation priorities
 
-# Disclaimer
+Before considering any operational use, the project needs:
 
-This article and tool is of an introductory nature and is intended for security professionals conducting testing under contract. The distribution of malware, disruption of systems, and violation of correspondence secrecy will be prosecuted. The author is not responsible for any damage caused by this tool.
+1. A defined, supported operating-system and network configuration scope.
+2. Safe argument validation and explicit confirmation of the target host and
+   interface.
+3. Per-run capture of the actual prior state, with reliable restoration of only
+   changes made by that run.
+4. Failure handling that reports incomplete changes accurately, plus
+   idempotent apply and restore behavior.
+5. Automated tests for parsing, state capture, failure paths, and restoration.
+6. Independent review and controlled environment testing. These are not yet
+   complete.
 
-# Mechanics
+## Validation approach
 
- The script performs the following operations:
+Start with non-privileged tests and command mocks for argument handling,
+state-management logic, and simulated failures. Then test system changes and
+restoration in disposable local virtual machines with snapshots and an isolated
+virtual network. Verify the baseline is restored after normal completion and
+after interruption or failure. Keep the environment disconnected from external
+targets.
 
-1. Installing the necessary tools. iptables for FW configuration, tc from iproute2 package for shaping traffic and macchanger for MAC change
-2. Hostname change. Yes, changing the hostname on Kali may seem like a mundane thing, but the default Kali hostname is one of the big triggers. You should always change the default hostname to some other hostname
-3. Disabling hostname transmission via DHCP in the "Wired Connection" Network Manager configuration. Note that F31 refers to the file /etc/NetworkManager/system-connections/Wired\ connection\ 1
-4. TTL increase and TTL offset +1 to bypass packet tracing during MITM attack
-5. Disabling the NTP client
-6. Firewall configuration. Allowing established and chained connections, blocking invalid connections, restricting ICMP traffic, blocking unexpected TCP MSS values
-7. Disabling ICMP Redirect. IDS/IPS security systems can trigger on ICMP Redirect messages, which can expose the attacker.
-8. MAC address randomization. A classic of the genre.
-9. Traffic Shaping. Minimizes noise for careful operation of scanners so as not to overload network equipment. Limits to 30Kbit/s, 800 ms latency
+Only after those checks pass should a controlled Red/Blue exercise be
+considered, and then only against systems owned by the testing team or
+explicitly authorized for that exercise. Measure both operational impact and
+defensive telemetry; do not treat a lack of alerts as proof of stealth or
+OPSEC. Restore snapshots and confirm cleanup before ending the exercise.
 
-## How to Use
+For hosted environments, a local VM is the better first step because the test
+needs privileged, host-level network configuration and easy snapshots. Railway
+is a poor fit for that kind of system-level testing. A disposable Hetzner VM
+could be considered later if local testing is insufficient, but only in a
+private, isolated network with no route to third-party targets; network changes
+can also sever remote access. Do not put provider credentials in this
+repository.
 
-It's simple enough, slope the repository, give the bash scripts permissions to run.
-
-```bash
-caster@kali:~$ git clone https://github.com/casterbyte/F31
-caster@kali:~$ cd F31/
-caster@kali:~/F31$ chmod +x F31.sh reset.sh
-```
-> F31 requires root privileges to run
-
-```bash
-caster@kali:~$ sudo bash F31.sh
-███████ ██████   ██ 
-██           ██ ███ 
-█████    █████   ██ 
-██           ██  ██ 
-██      ██████   ██ 
-                    
-F31: Tool for hiding Kali Linux on the network
-Author: Caster, @casterbyte, <caster@exploit.org>
-Version: 1.0.0
-For instructions and an example of how to use it, visit: https://github.com/casterbyte/F31
-Usage: F31.sh --interface <interface> --new-hostname <hostname> [--noise-reduction]
-
-Options:
-  --interface       Specify the network interface to hide
-  --new-hostname    Specify the new hostname for the system
-  --noise-reduction Enable traffic shaping for noise reduction (optional)
-```
-
-The tool will expect two arguments per input. These are the system interface and the new hostname that the Kali user will want.
-
-The argument responsible for activating traffic shaping is optional. It may not always be needed by the attacker. And traffic shaping will affect the speed of downloading files, etc. in the future. Use noise reduction wisely.
-
-```bash
-caster@kali:~/F31$ sudo bash F31.sh --interface eth0 --new-hostname ubuntu --noise-reduction
-███████ ██████   ██ 
-██           ██ ███ 
-█████    █████   ██ 
-██           ██  ██ 
-██      ██████   ██ 
-                    
-F31: Tool for hiding Kali Linux on the network
-Author: Caster, @casterbyte, <caster@exploit.org>
-Version: 1.0.0
-For instructions and an example of how to use it, visit: https://github.com/casterbyte/F31
-[+] Tools are already installed.
-
-[+] Changing hostname
-[*] Hostname changed to ubuntu successfully.
-[+] Updating /etc/hosts
-[*] /etc/hosts updated successfully.
-
-[+] Disabling hostname transfer via DHCP
-[*] Hostname through DHCP disabled successfully.
-
-[+] Disabling NTP client
-[*] NTP client shut down successfully.
-
-[+] Increasing and shifting TTL (TTL=80)
-[*] TTL values adjusted successfully.
-
-[+] Configuring firewall
-[*] Allowing established and chained connections, blocking invalid connections, restricting ICMP traffic, blocking unexpected TCP MSS values
-[*] Firewall configuration successfully.
-
-[+] Disabling ICMP Redirect
-[*] ICMP Redirects disabled successfully.
-
-[+] Changing MAC
-[*] Randomize MAC configured successfully.
-
-[+] Limit data rate to 30 kbit/s and latency 600ms to minimize noise in L2/L3 scanning.
-[+] WARNING: This change will severely affect the speed of file downloads. Use this shaping exactly before scanning
-[+] If necessary, adjust this value yourself
-[*] Traffic shaping configured successfully.
-[*] Script executed successfully.
-```
-
-## Revert changes
-
-I have prepared a special script to roll back all the settings made.
-
-```bash
-caster@kali:~/F31$ sudo bash reset.sh --interface eth0 --old-hostname kali
-███████ ██████   ██ 
-██           ██ ███ 
-█████    █████   ██ 
-██           ██  ██ 
-██      ██████   ██ 
-                    
-F31: Tool for hiding Kali Linux on the network (Reset Script)
-Author: Caster, @casterbyte, <caster@exploit.org>
-Version: 1.0.0
-For instructions and an example of how to use it, visit: https://github.com/casterbyte/F31
-
-[+] Restoring MAC
-
-[+] Enabling ICMP Redirect
-
-[+] Enabling NTP client
-[*] NTP client enabled successfully.
-
-[+] Restoring firewall configuration
-
-[+] Enabling hostname transfer via DHCP
-
-[+] Resetting TTL (TTL=64)
-
-[+] Restoring hostname
-[*] Hostname restored to kali successfully.
-[+] Restoring /etc/hosts
-[*] /etc/hosts restored successfully.
-
-[+] Removing traffic shaping (noise reduction)
-[+] Traffic shaping removed
-[*] Reset script executed successfully
-```
-
-# Outro
-
-This tool is not a panacea, you must understand what you are doing in the infrastructure and avoid risk as much as possible.
-UPD: This utility is a complete failure, and I'll be giving it new life soon.
+Until the remediation and validation work is complete, the scripts are retained
+for reference only and are not recommended for execution.
